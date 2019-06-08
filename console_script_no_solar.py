@@ -409,7 +409,7 @@ def main():
 	while True:
 		can_message = can_bus.recv()
 		msg_id = can_message.arbitration_id
-		if msg_id not in uniden_can_msgs:
+		if msg_id not in UNIDENTIFIED_CAN_MSGS:
 			data = db.decode_message(can_message.arbitration_id, can_message.data)
 			if (msg_id == 35):	# FAULT
 				# TODO: change this to a try/catch statement
