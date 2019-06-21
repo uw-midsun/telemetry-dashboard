@@ -15,7 +15,7 @@ import time
 Constants
 -------------------------------------------------------
 """
-UNIDENTIFIED_CAN_MSGS = [25, 910, 937]
+UNIDENTIFIED_CAN_MSGS = [25]
 
 TEMP_THRESHOLD = 1
 TOTAL_BATTERY_MODULES = 36
@@ -85,10 +85,10 @@ dcdc_voltage = dcdc_current = 0
 
 # SOLAR ARRAY VARIABLES
 # ARRAY_LAYOUT = [[3, 2], [4, 1], [5, 0]]
-# TOTAL_ARRAY_MODULES_EACH = 6
-# array_front_modules = [None] * TOTAL_ARRAY_MODULES_EACH
-# array_rear_modules = [None] * TOTAL_ARRAY_MODULES_EACH
-# array_front_module_count = array_rear_module_count = 0
+TOTAL_ARRAY_MODULES_EACH = 6
+array_front_modules = [None] * TOTAL_ARRAY_MODULES_EACH
+array_rear_modules = [None] * TOTAL_ARRAY_MODULES_EACH
+array_front_module_count = array_rear_module_count = 0
 
 can_bus = can.interface.Bus('vcan0', bustype='socketcan')
 db = cantools.database.load_file('system_can.dbc')
@@ -242,7 +242,7 @@ def read_motor_velocity(data):
 			motor_velocity_l = value
 		elif 'vehicle_velocity_right' in key:
 			motor_velocity_r = value
-	motor_velocity = (motor_velocity_l + motor_velocity_r)/2
+	motor_velocity = (motor_velocity_l + motor_velocity_r)/2 * 0.036
 	return
 
 # 1379

@@ -11,13 +11,13 @@ import can
 import cantools
 import time
 
+
 """
 -------------------------------------------------------
 Constants
 -------------------------------------------------------
 """
-
-UNIDENTIFIED_CAN_MSGS = [25, 910, 937]
+UNIDENTIFIED_CAN_MSGS = [25]
 
 TEMP_THRESHOLD = 1
 TOTAL_BATTERY_MODULES = 36
@@ -47,23 +47,21 @@ POWER_DISTRIBUTION_FAULT = {0:'BPS HB', 1:'BPS HB WATCHDOG', 2:'POWERTRAIN HB WA
 Global Variables
 -------------------------------------------------------
 """
-faulted = False
-
+# -----------------SYSTEM CAN VARIABLES----------------
 battery_time = None
 battery_updated = False
-solar_front_time = None
-solar_front_updated = False
-solar_rear_time = None
-solar_rear_updated = False
+# solar_front_time = None
+# solar_front_updated = False
+# solar_rear_time = None
+# solar_rear_updated = False
 
 # DRIVER CONTROL VARIABLES
 throttle = direction = cruise_control_state = mechanical_brake_state = 0
 cruise_control_target = 0
-motor_velocity = motor_velocity_l = motor_velocity_r = 0
+# motor_velocity = motor_velocity_l = motor_velocity_r = 0
 
 # BATTERY VARIABLES
 min_v_module = min_t_module = max_v_module = max_t_module = 0
-
 min_v = max_v = total_v = avg_v = voltage = 0
 min_t = max_t = total_t = avg_t = temp = 0
 
@@ -83,18 +81,37 @@ aux_voltage = aux_current = 0
 dcdc_voltage = dcdc_current = 0
 
 # SOLAR ARRAY VARIABLES
-TOTAL_ARRAY_MODULES_EACH = 6
-array_front_modules = [0.0, 0.0, 0.0] * TOTAL_ARRAY_MODULES_EACH
-array_rear_modules = [0.0, 0.0, 0.0] * TOTAL_ARRAY_MODULES_EACH
-array_front_module_count = array_rear_module_count = 0
+# TOTAL_ARRAY_MODULES_EACH = 6
+# array_front_modules = [0.0, 0.0, 0.0] * TOTAL_ARRAY_MODULES_EACH
+# array_rear_modules = [0.0, 0.0, 0.0] * TOTAL_ARRAY_MODULES_EACH
+# array_front_module_count = array_rear_module_count = 0
 
+# SYSTEM CAN BUS
 can_bus = can.interface.Bus('vcan0', bustype='socketcan')
 db = cantools.database.load_file('system_can.dbc')
 
 
+# --------------MOTOR CONTROLLER VARIABLES-------------
+# LEFT VELOCITY MEASUREMENT
+mc_left_motor_velocity = mc_left_vehicle_velocity = 0
+
+# LEFT ODOMETER
+mc_left_odometer = mc_left_dcbus = 0
+
+# RIGHT VELOCITY MEASUREMENT
+mc_right_motor_velocity = mc_right_vehicle_velocity = 0
+
+# RIGHT ODOMETER
+mc_right_odometer = mc_right_dcbus = 0
+
+# MOTOR CONTROLLER BUS
+motor_can_bus = can.interface.Bus('vcan1', bustype='socketcan')
+motor_db = cantools.database.load_file('wavesculptor_20.dbc')
+
+
 """
 -------------------------------------------------------
-Functions
+System CAN Read Functions
 -------------------------------------------------------
 """
 # 584
@@ -197,7 +214,6 @@ def read_battery_vt(data):
 		# final module recorded
 		# output data if we have received info on each module
 		if module == (TOTAL_BATTERY_MODULES):
-			print(module_v_count)
 			if module_v_count == 36:
 				avg_v = total_v / module_v_count
 				if module_t_count > 0:
@@ -234,16 +250,17 @@ def read_motor_controller_vc(data):
 	return
 
 # 1159
-def read_motor_velocity(data):
-	global motor_velocity
+# REPLACED WITH MOTOR CONTROLLERS DBC
+# def read_motor_velocity(data):
+# 	global motor_velocity
 
-	for key, value in data.items():
-		if 'vehicle_velocity_left' in key:
-			motor_velocity_l = value
-		elif 'vehicle_velocity_right' in key:
-			motor_velocity_r = value
-	motor_velocity = (motor_velocity_l + motor_velocity_r)/2
-	return
+# 	for key, value in data.items():
+# 		if 'vehicle_velocity_left' in key:
+# 			motor_velocity_l = value
+# 		elif 'vehicle_velocity_right' in key:
+# 			motor_velocity_r = value
+# 	motor_velocity = (motor_velocity_l + motor_velocity_r)/2
+# 	return
 
 # 1379
 def read_aux_dcdc(data):
@@ -282,8 +299,8 @@ def read_solar_data_front(data):
 
 	if array_module == TOTAL_ARRAY_MODULES_EACH - 1:
 		if array_front_module_count == 6:
-		solar_front_updated = True
-		solar_rear_time = time.time()
+			solar_front_updated = True
+			solar_rear_time = time.time()
 
 	return
 
@@ -309,11 +326,89 @@ def read_solar_data_rear(data):
 
 	if array_module == TOTAL_ARRAY_MODULES_EACH - 1:
 		if array_rear_module_count == 6:
-		solar_rear_updated = True
-		solar_rear_time = time.time()
+			solar_rear_updated = True
+			solar_rear_time = time.time()
 
 	return
 
+def reset_values():
+	# Reset variables corresponding with event-driven CAN messages.
+	global throttle, direction, cruise_control_state, mechanical_brake_state,\
+			cruise_control_target, motor_velocity
+
+	throttle = 0
+	direction = 0
+	cruise_control_state = 0
+	mechanical_brake_state = 0
+	cruise_control_target = 0
+	motor_velocity = 0
+
+
+
+"""
+-------------------------------------------------------
+Motor Controller Read Functions
+-------------------------------------------------------
+"""
+# 97
+def rear_left_status(data):		# TODO: test with logs to see output format
+	pass
+
+# 99
+def read_left_velocity(data):	
+	global mc_left_motor_velocity, mc_left_vehicle_velocity
+
+	for key, value in data.items():
+		if 'MotorVelocity' in key:
+			mc_left_motor_velocity = value
+		elif 'VehicleVelocity' in key:
+			mc_left_vehicle_velocity = value
+	return
+
+# 110
+def read_left_odometer(data):
+	global mc_left_odometer, mc_left_dcbus
+
+	for key, value in data.items():
+		if 'Odometer' in key:
+			mc_left_odometer = value
+		elif 'DCBus' in key:
+			mc_left_dcbus = value
+	return
+
+# 129
+def read_right_status(data):	# TODO: test with logs to see output format
+	pass
+
+# 131
+def read_right_velocity(data):
+	global mc_right_motor_velocity, mc_right_vehicle_velocity
+
+	for key, value in data.items():
+		if 'MotorVelocity' in key:
+			mc_right_motor_velocity = value
+		elif 'VehicleVelocity' in key:
+			mc_right_vehicle_velocity = value * 3.6
+	return
+
+# 142
+def read_right_odometer(data):
+	global mc_right_odometer, mc_right_dcbus
+
+	for key, value in data.items():
+		if 'Odometer' in key:
+			mc_left_odometer = value
+		elif 'DCBus' in key:
+			mc_left_dcbus = value
+	return
+
+
+
+"""
+-------------------------------------------------------
+Print Functions
+-------------------------------------------------------
+"""
 def print_separator():
 	print('=======================================================================================')
 	return
@@ -343,7 +438,7 @@ def print_battery_data():	#TODO: print time stamp
 		module_counter+= 1
 	return
 
-def print_solar_array_data(): #TODO: test at next track day
+def print_solar_array_data():
 	print("""
 			 _______________   _____________	 ___________________________
 			/ 	F3			| |	F2			|	| B2			B3			|
@@ -390,23 +485,32 @@ def print_motor_controller_data():
 	print('MC Voltage 2: {}\tMC Current 2: {}'.format(mc_voltage_2, mc_current_2))
 	return
 
-def reset_values():
-	# Reset variables corresponding with event-driven CAN messages.
-	global throttle, direction, cruise_control_state, mechanical_brake_state,\
-			cruise_control_target, motor_velocity
+def print_mc_status():
+	print('Motor controller status here')
 
-	throttle = 0
-	direction = 0
-	cruise_control_state = 0
-	mechanical_brake_state = 0
-	cruise_control_target = 0
-	motor_velocity = 0
+
+def print_mc_velocity():
+	print('					LEFT 	|	RIGHT')
+	print('Motor Velocity 		{}rpm	|	{}rpm'.\
+					format(mc_left_motor_velocity, mc_right_motor_velocity))
+	print('Vehicle Velocity 	{}kmh 	|	{}kmh'.\
+					format(mc_left_vehicle_velocity, mc_right_vehicle_velocity))
+
+def print_mc_odometer():
+	print('Odometer 		{}m 	|	{}m'.\
+					format(mc_left_odometer, mc_right_odometer))
+	print('DC Bus 			{}Ah 	|	{}Ah'.\
+					format(mc_left_dcbus, mc_right_dcbus))
+
+
+
+
+
 
 
 def main():
-	global battery_updated, solar_rear_updated, solar_front_updated
+	global battery_updated #, solar_rear_updated, solar_front_updated
 
-	#while not faulted:
 	while True:
 		can_message = can_bus.recv()
 		msg_id = can_message.arbitration_id
@@ -417,50 +521,66 @@ def main():
 			else:
 				if (msg_id == 584):		# DRIVE OUTPUT
 					read_drive_output(data)
-
 				elif (msg_id == 616):	# CRUISE CONTROL TARGET
 					read_cruise_control(data)
-
 				elif (msg_id == 1025 and not battery_updated):	# BATTERY VT
 					read_battery_vt(data)
-
 				elif (msg_id == 1057):	# BATTERY AGGREGATE VC
 					read_battery_aggregate_vc(data)
-
 				elif (msg_id == 1127):	# MOTOR CONTROLLER VC
 					read_motor_controller_vc(data)
-
 				elif (msg_id == 1159):	# MOTOR VELOCITY
 					read_motor_velocity(data)
-
 				elif (msg_id == 1379):	# AUX DCDC
 					read_aux_dcdc(data)
+				# elif (msg_id == 1450): 	# SOLAR DATA FRONT currently missing CAN messages for modules 0, 4
+				# 	read_solar_data_front(data)
+				# elif (msg_id == 1483):	# SOLAR DATA REAR currently sending no CAN messages
+				# 	read_solar_data_rear(data)
 
-				elif (msg_id == 1450): 	# SOLAR DATA FRONT
-					read_solar_data_front(data)
+		motor_can_message = motor_can_bus.recv()
+		motor_msg_id = motor_can_message.arbitration_id
+		data = db.decode_message(can_message.arbitration_id, can_message.data)
+		if (motor_msg_id == 97):		# LEFT STATUS	
+			rear_left_status(data)
+		elif (motor_msg_id == 99): 		# LEFT VELOCITY
+			read_left_velocity(data)
+		elif (motor_msg_id == 110): 	# LEFT ODOMETER 
+			read_left_odometer(data)
+		elif (motor_msg_id == 129): 	# RIGHT STATUS
+			read_right_status(data)
+		elif (motor_msg_id == 131):		# RIGHT VELOCITY
+			read_right_velocity(data)
+		elif (motor_msg_id == 142):		# RIGHT ODOMETER
+			read_right_odometer(data)
 
-				elif (msg_id == 1483):	# SOLAR DATA REAR
-					read_solar_data_rear(data)
 
 
-			if battery_updated and solar_front_updated: # solar_rear_updated and
-				print('\n----------------------------------------SUMMARY----------------------------------------')
-				print_summary_data()
-				print_separator()
-				print_aux_dcdc_data()
-				print_separator()
-				print('----------------------------------------BATTERY----------------------------------------')
-				print_battery_data()
-				print_separator()
-				print_driver_controls_data()
-				print_separator()
-				print_motor_controller_data()
-				print_separator()
-				print('-----------------------------------------ARRAY-----------------------------------------')
-				print_solar_array_data()
-				print_separator()
-				battery_updated = solar_front_updated = solar_rear_updated = False
-				reset_values()
+		if battery_updated: # and solar_front_updated and solar_rear_updated:
+			print('\n----------------------------------------SUMMARY----------------------------------------')
+			print_summary_data()
+			print_separator()
+			print_aux_dcdc_data()
+			print_separator()
+			print('----------------------------------------BATTERY----------------------------------------')
+			print_battery_data()
+			print_separator()
+			print_driver_controls_data()
+			print_separator()
+			print_motor_controller_data()
+			print_separator()
+			# print('-----------------------------------------ARRAY-----------------------------------------')
+			# print_solar_array_data()
+			# print_separator()
+			print_mc_status()
+			print_mc_velocity()
+			print_mc_odometer()
+			print_separator()
+
+
+
+			battery_updated = False # solar_front_updated = solar_rear_updated = False
+			reset_values()
 
 if __name__ == '__main__':
 	main()
